@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
-
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/.claude/

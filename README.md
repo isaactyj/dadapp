@@ -1,38 +1,48 @@
-# Oil & War Stocks Lab
+# Dad App
 
-A standalone Python + HTML webapp for two separate workflows:
+This repo now includes:
+
+1. A Python + HTML web app.
+2. A cross-platform Expo mobile app for Android and iPhone.
+
+Both versions cover the same two workflows:
 
 1. Estimate support and take-profit levels for oil, defense, and war-tech stocks.
-2. Screen a ticker universe for names that were weak into earnings, then traded higher after earnings.
+2. Scan earnings behavior with either:
+   - `Near low then bounce`
+   - `Compare pre vs post`
 
-## Run it
+## Web App
 
 ```powershell
-cd C:\Users\USER\OneDrive\Desktop\oil-war-stocks-lab
+cd C:\Users\USER\OneDrive\Documents\GitHub\dadapp
 python app.py
 ```
 
-The app serves at `http://127.0.0.1:8890/index.html` by default.
+The web app serves at `http://127.0.0.1:8890/index.html`.
 
-## What the app does
+## Mobile App
 
-### Levels tab
+```powershell
+cd C:\Users\USER\OneDrive\Documents\GitHub\dadapp\mobile
+npm start
+```
 
-- Pulls daily price history from Yahoo chart endpoints.
-- Clusters recent pivot lows, rolling lows, and moving averages to estimate support.
-- Clusters recent highs to estimate take-profit and stretch targets.
-- Lets you compare a custom thesis like `PLTR 130 -> 160` against model-derived levels.
+From there you can:
 
-### Earnings Pattern tab
+- Press `a` to open Android if you have an emulator/device ready.
+- Open the Expo Go app on iPhone and scan the QR code.
+- Use Expo/EAS later if you want installable store-style builds.
 
-- Pulls price history plus Yahoo `earningsHistory` and `calendarEvents`.
-- For each earnings event, checks whether the stock closed near its prior two-month low.
-- Measures whether the stock then traded higher during a configurable post-earnings window.
-- Ranks symbols by hit count, hit rate, and average post-earnings bounce.
+## Mobile Notes
+
+- The mobile app is in [mobile/App.tsx](C:/Users/USER/OneDrive/Documents/GitHub/dadapp/mobile/App.tsx:1).
+- It uses one Expo codebase for both Android and iPhone.
+- Levels and earnings logic were ported into TypeScript under [mobile/src/services/analysis.ts](C:/Users/USER/OneDrive/Documents/GitHub/dadapp/mobile/src/services/analysis.ts:1).
+- Historical earnings on mobile use `historicalearnings.com` directly rather than the blocked Yahoo earnings endpoint.
 
 ## Important caveats
 
 - This is a screening tool, not financial advice.
-- The earnings study is approximate because free Yahoo earnings-history data does not expose a full institutional-grade event timeline.
-- Scanning a very large universe may hit rate limits. Start with 10 to 40 symbols, then expand.
-
+- The earnings study is approximate and should be treated as a pattern filter, not a perfect event-study engine.
+- Large symbol universes can still hit free-data limits, so smaller focused watchlists will feel better on mobile.
