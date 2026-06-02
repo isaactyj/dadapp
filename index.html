@@ -545,7 +545,7 @@
     <section id="earnings" class="section">
       <div class="controls-grid">
         <article class="panel controls-card">
-          <h2>Earnings Bounce Pattern Scan</h2>
+          <h2>Earnings Pattern Scan</h2>
           <p id="earningsIntro">This looks for cases where a stock sat near its two-month low into earnings, then traded higher after the report.</p>
           <div class="form-grid">
             <div class="field">
@@ -614,8 +614,8 @@
                 <th>Price</th>
                 <th>Hits</th>
                 <th>Hit Rate</th>
-                <th>Avg Post High</th>
-                <th>Avg Post Close</th>
+                <th id="earningsHighHeader">Avg Post High</th>
+                <th id="earningsCloseHeader">Avg Post Close</th>
                 <th>Next Earnings</th>
                 <th>Latest Cycle</th>
               </tr>
@@ -736,6 +736,12 @@
       const body = document.getElementById("earningsTableBody");
       const details = document.getElementById("earningsDetails");
       const isPrePost = payload.filters?.mode === "prepost";
+      document.getElementById("earningsHighHeader").textContent = isPrePost
+        ? "Avg Difference: Post High vs Pre-Earnings"
+        : "Avg Post High";
+      document.getElementById("earningsCloseHeader").textContent = isPrePost
+        ? "Avg Difference: Post Close vs Pre-Earnings"
+        : "Avg Post Close";
 
       if (!payload.results.length) {
         body.innerHTML = `

@@ -391,11 +391,11 @@ export default function App() {
                   <MetricRow label="Hits" value={`${item.patternHits}/${item.eventsTested}`} />
                   <MetricRow label="Hit Rate" value={`${formatNumber(item.hitRatePct)}%`} />
                   <MetricRow
-                    label={isPrePost ? 'Avg Pre->Post High' : 'Avg Post High'}
+                    label={isPrePost ? 'Avg Difference: Post High vs Pre-Earnings' : 'Avg Post High'}
                     value={`${formatNumber(item.avgPostHighReturnPct)}%`}
                   />
                   <MetricRow
-                    label={isPrePost ? 'Avg Pre->Post Close' : 'Avg Post Close'}
+                    label={isPrePost ? 'Avg Difference: Post Close vs Pre-Earnings' : 'Avg Post Close'}
                     value={`${formatNumber(item.avgPostCloseReturnPct)}%`}
                   />
                   <MetricRow label="Next Earnings" value={item.nextEarningsDate ?? 'n/a'} />
@@ -845,4 +845,3 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 });
-
