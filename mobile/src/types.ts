@@ -1,4 +1,4 @@
-export type EarningsMode = 'near-low' | 'prepost';
+export type EarningsMode = 'prepost';
 
 export type Preset = {
   id: string;
@@ -84,10 +84,7 @@ export type EarningsPayload = {
   filters: {
     preDays: number;
     postDays: number;
-    nearLowPct: number;
-    bouncePct: number;
     mode: EarningsMode;
   };
   lastUpdated: string;
 };
-

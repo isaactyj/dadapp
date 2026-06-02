@@ -410,6 +410,12 @@
       margin-top: 16px;
     }
 
+    .error-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
     .mini-card {
       padding: 16px;
       border-radius: 18px;
@@ -546,7 +552,7 @@
       <div class="controls-grid">
         <article class="panel controls-card">
           <h2>Earnings Pattern Scan</h2>
-          <p id="earningsIntro">This looks for cases where a stock sat near its two-month low into earnings, then traded higher after the report.</p>
+          <p id="earningsIntro">This compares the price at the start of the pre-earnings window against the move after earnings.</p>
           <div class="form-grid">
             <div class="field">
               <label for="earningsPreset">Preset</label>
@@ -557,27 +563,12 @@
               <textarea id="earningsSymbols">PLTR, LMT, NOC, RTX, GD, LHX, KTOS, AVAV, RKLB, XOM, CVX, COP, EOG, OXY, SLB, HAL, BKR</textarea>
             </div>
             <div class="field">
-              <label for="earningsMode">Scan Mode</label>
-              <select id="earningsMode">
-                <option value="near-low">Near low then bounce</option>
-                <option value="prepost">Compare pre vs post</option>
-              </select>
-            </div>
-            <div class="field">
               <label for="preDays">Pre-Earnings Window</label>
               <input id="preDays" type="number" value="42" min="20" max="90" />
             </div>
             <div class="field">
               <label for="postDays">Post-Earnings Window</label>
               <input id="postDays" type="number" value="20" min="1" max="40" />
-            </div>
-            <div class="field">
-              <label for="nearLowPct">Near Low Threshold %</label>
-              <input id="nearLowPct" type="number" value="6" step="0.5" />
-            </div>
-            <div class="field">
-              <label for="bouncePct">Bounce Threshold %</label>
-              <input id="bouncePct" type="number" value="8" min="0" step="0.5" />
             </div>
           </div>
           <div class="actions">
@@ -597,7 +588,7 @@
         </article>
         <article class="panel status-card">
           <div class="pill">What Qualifies</div>
-          <p id="earningsModeHelp">The event-day close must be close to the prior two-month low, then the stock must rally at least the threshold you set within the post-earnings window.</p>
+          <p id="earningsModeHelp">A hit means the post-earnings close beat the return threshold you set when compared with the price at the start of the pre-earnings window.</p>
         </article>
         <article class="panel status-card">
           <div class="pill">Important Limitation</div>
@@ -606,6 +597,7 @@
       </div>
 
       <article class="panel table-card">
+        <div id="earningsErrors" class="error-list"></div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -735,13 +727,17 @@
     const renderEarningsTable = (payload) => {
       const body = document.getElementById("earningsTableBody");
       const details = document.getElementById("earningsDetails");
-      const isPrePost = payload.filters?.mode === "prepost";
-      document.getElementById("earningsHighHeader").textContent = isPrePost
-        ? "Avg Difference: Post High vs Pre-Earnings"
-        : "Avg Post High";
-      document.getElementById("earningsCloseHeader").textContent = isPrePost
-        ? "Avg Difference: Post Close vs Pre-Earnings"
-        : "Avg Post Close";
+      const errors = document.getElementById("earningsErrors");
+      document.getElementById("earningsHighHeader").textContent = "Avg Difference: Post High vs Pre-Earnings";
+      document.getElementById("earningsCloseHeader").textContent = "Avg Difference: Post Close vs Pre-Earnings";
+      errors.innerHTML = (payload.errors || []).length
+        ? `
+          <div class="empty" style="text-align:left;">
+            <strong>Failed symbols:</strong><br>
+            ${(payload.errors || []).map((item) => `${item.symbol}: ${item.error}`).join("<br>")}
+          </div>
+        `
+        : "";
 
       if (!payload.results.length) {
         body.innerHTML = `
@@ -758,7 +754,7 @@
       body.innerHTML = payload.results.map((item) => {
         const latest = item.latest_cycle;
         const latestText = latest
-          ? `${latest.earnings_date} | ${formatNumber(isPrePost ? latest.pre_to_post_close_return_pct : latest.post_high_return_pct)}%`
+          ? `${latest.earnings_date} | ${formatNumber(latest.pre_to_post_close_return_pct)}%`
           : "n/a";
         return `
           <tr>
@@ -782,9 +778,9 @@
           ${(item.qualifying_cycles || []).map((cycle) => `
             <div class="metric-row" style="margin-top:12px;">
               <span>${cycle.earnings_date}</span>
-              <strong>${formatNumber(isPrePost ? cycle.pre_to_post_close_return_pct : cycle.post_high_return_pct)}%</strong>
+              <strong>${formatNumber(cycle.pre_to_post_close_return_pct)}%</strong>
             </div>
-            <div class="mini">${isPrePost ? `Pre-window start to post-close: ${formatNumber(cycle.pre_to_post_close_return_pct)}%` : `Distance from two-month low: ${formatNumber(cycle.distance_from_two_month_low_pct)}%`}</div>
+            <div class="mini">Pre-window start to post-close: ${formatNumber(cycle.pre_to_post_close_return_pct)}%</div>
           `).join("")}
         </article>
       `).join("");
@@ -844,11 +840,8 @@
         const url = buildUrl("/api/earnings-pattern", {
           symbols: symbols.join(","),
           refresh: refresh ? "1" : "0",
-          mode: document.getElementById("earningsMode").value,
           pre_days: document.getElementById("preDays").value,
           post_days: document.getElementById("postDays").value,
-          near_low_pct: document.getElementById("nearLowPct").value,
-          bounce_pct: document.getElementById("bouncePct").value,
         });
         const payload = await fetchJson(url);
         renderEarningsTable(payload);
@@ -861,22 +854,6 @@
           <tr><td colspan="8"><div class="empty">${error.message}</div></td></tr>
         `;
         document.getElementById("earningsDetails").innerHTML = "";
-      }
-    };
-
-    const updateEarningsModeCopy = () => {
-      const mode = document.getElementById("earningsMode").value;
-      const intro = document.getElementById("earningsIntro");
-      const help = document.getElementById("earningsModeHelp");
-      const nearLowField = document.getElementById("nearLowPct").closest(".field");
-      if (mode === "prepost") {
-        intro.textContent = "This compares the price at the start of the pre-earnings window against the move after earnings, without requiring the stock to be near a low first.";
-        help.textContent = "A hit means the post-earnings close beat the return threshold you set when compared with the price at the start of the pre-earnings window.";
-        nearLowField.style.opacity = "0.45";
-      } else {
-        intro.textContent = "This looks for cases where a stock sat near its two-month low into earnings, then traded higher after the report.";
-        help.textContent = "The event-day close must be close to the prior two-month low, then the stock must rally at least the threshold you set within the post-earnings window.";
-        nearLowField.style.opacity = "1";
       }
     };
 
@@ -893,7 +870,6 @@
 
     const init = async () => {
       bindTabs();
-      document.getElementById("earningsMode").addEventListener("change", updateEarningsModeCopy);
       document.getElementById("runLevels").addEventListener("click", () => runLevels(false));
       document.getElementById("refreshLevels").addEventListener("click", () => runLevels(true));
       document.getElementById("runEarnings").addEventListener("click", () => runEarnings(false));
@@ -903,7 +879,6 @@
         const config = await fetchJson("/api/config");
         state.presets = config.presets || [];
         populatePresets();
-        updateEarningsModeCopy();
       } catch (error) {
         setMeta("levelsMeta", `Could not load presets: ${error.message}`);
         setMeta("earningsMeta", `Could not load presets: ${error.message}`);

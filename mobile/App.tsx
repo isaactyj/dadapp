@@ -17,7 +17,7 @@ import {
   getLevelsPayload,
   normalizeSymbols,
 } from './src/services/analysis';
-import type { EarningsMode, EarningsPayload, LevelsPayload, Preset } from './src/types';
+import type { EarningsPayload, LevelsPayload, Preset } from './src/types';
 
 
 type AppTab = 'levels' | 'earnings';
@@ -64,11 +64,8 @@ export default function App() {
 
   const [earningsPreset, setEarningsPreset] = useState(PRESETS[0].id);
   const [earningsSymbols, setEarningsSymbols] = useState(fieldValueFromPreset(PRESETS[0].id));
-  const [earningsMode, setEarningsMode] = useState<EarningsMode>('prepost');
   const [preDays, setPreDays] = useState('60');
   const [postDays, setPostDays] = useState('1');
-  const [nearLowPct, setNearLowPct] = useState('6');
-  const [bouncePct, setBouncePct] = useState('0');
   const [earningsLoading, setEarningsLoading] = useState(false);
   const [earningsPayload, setEarningsPayload] = useState<EarningsPayload | null>(null);
   const [earningsError, setEarningsError] = useState<string | null>(null);
@@ -106,9 +103,7 @@ export default function App() {
         symbols: normalizeSymbols(earningsSymbols),
         preDays: Math.max(20, Number(preDays) || 60),
         postDays: Math.max(1, Number(postDays) || 1),
-        nearLowPct: Math.max(1, Number(nearLowPct) || 6),
-        bouncePct: Math.max(0, Number(bouncePct) || 0),
-        mode: earningsMode,
+        mode: 'prepost',
       });
       setEarningsPayload(payload);
     } catch (error) {
@@ -269,7 +264,7 @@ export default function App() {
             <View style={styles.panel}>
               <Text style={styles.sectionTitle}>Earnings Pattern Scanner</Text>
               <Text style={styles.sectionBody}>
-                Choose whether to scan for “near low then bounce” or directly compare pre-earnings performance with the move after earnings.
+                Compare the price at the start of the pre-earnings window against the move after earnings.
               </Text>
 
               <PresetStrip
@@ -286,21 +281,6 @@ export default function App() {
                   placeholder="PLTR, LMT, NOC, RTX..."
                   placeholderTextColor={colors.muted}
                 />
-              </Field>
-
-              <Field label="Scan Mode">
-                <View style={styles.toggleRow}>
-                  <ModeButton
-                    label="Compare pre vs post"
-                    active={earningsMode === 'prepost'}
-                    onPress={() => setEarningsMode('prepost')}
-                  />
-                  <ModeButton
-                    label="Near low then bounce"
-                    active={earningsMode === 'near-low'}
-                    onPress={() => setEarningsMode('near-low')}
-                  />
-                </View>
               </Field>
 
               <View style={styles.row}>
@@ -321,29 +301,6 @@ export default function App() {
                     keyboardType="numeric"
                     style={styles.input}
                     placeholder="1"
-                    placeholderTextColor={colors.muted}
-                  />
-                </Field>
-              </View>
-
-              <View style={styles.row}>
-                <Field label="Near Low Threshold %" style={styles.halfField}>
-                  <TextInput
-                    value={nearLowPct}
-                    onChangeText={setNearLowPct}
-                    keyboardType="numeric"
-                    style={[styles.input, earningsMode === 'prepost' && styles.inputMuted]}
-                    placeholder="6"
-                    placeholderTextColor={colors.muted}
-                  />
-                </Field>
-                <Field label={earningsMode === 'prepost' ? 'Required Pre->Post Return %' : 'Bounce Threshold %'} style={styles.halfField}>
-                  <TextInput
-                    value={bouncePct}
-                    onChangeText={setBouncePct}
-                    keyboardType="numeric"
-                    style={styles.input}
-                    placeholder="0"
                     placeholderTextColor={colors.muted}
                   />
                 </Field>
@@ -376,7 +333,6 @@ export default function App() {
             {earningsLoading ? <LoadingPanel /> : null}
             {!earningsLoading && earningsError ? <ErrorPanel message={earningsError} /> : null}
             {!earningsLoading && !earningsError && earningsPayload?.results.map((item) => {
-              const isPrePost = earningsPayload.filters.mode === 'prepost';
               const latest = item.latestCycle;
               return (
                 <View key={item.symbol} style={styles.resultCard}>
@@ -390,40 +346,38 @@ export default function App() {
 
                   <MetricRow label="Hits" value={`${item.patternHits}/${item.eventsTested}`} />
                   <MetricRow label="Hit Rate" value={`${formatNumber(item.hitRatePct)}%`} />
-                  <MetricRow
-                    label={isPrePost ? 'Avg Difference: Post High vs Pre-Earnings' : 'Avg Post High'}
-                    value={`${formatNumber(item.avgPostHighReturnPct)}%`}
-                  />
-                  <MetricRow
-                    label={isPrePost ? 'Avg Difference: Post Close vs Pre-Earnings' : 'Avg Post Close'}
-                    value={`${formatNumber(item.avgPostCloseReturnPct)}%`}
-                  />
+                  <MetricRow label="Avg Difference: Post High vs Pre-Earnings" value={`${formatNumber(item.avgPostHighReturnPct)}%`} />
+                  <MetricRow label="Avg Difference: Post Close vs Pre-Earnings" value={`${formatNumber(item.avgPostCloseReturnPct)}%`} />
                   <MetricRow label="Next Earnings" value={item.nextEarningsDate ?? 'n/a'} />
 
                   {latest ? (
                     <View style={styles.callout}>
                       <Text style={styles.calloutText}>Latest cycle {latest.earningsDate}</Text>
-                      <Text style={styles.calloutStrong}>
-                        {isPrePost
-                          ? `${formatNumber(latest.preToPostCloseReturnPct)}% from pre-window start to post-close`
-                          : `${formatNumber(latest.postHighReturnPct)}% post-earnings high`}
-                      </Text>
+                      <Text style={styles.calloutStrong}>{`${formatNumber(latest.preToPostCloseReturnPct)}% from pre-window start to post-close`}</Text>
                     </View>
                   ) : null}
 
                   {(item.qualifyingCycles ?? []).slice(0, 3).map((cycle) => (
                     <View key={`${item.symbol}-${cycle.earningsDate}`} style={styles.cycleCard}>
                       <Text style={styles.cycleDate}>{cycle.earningsDate}</Text>
-                      <Text style={styles.cycleText}>
-                        {isPrePost
-                          ? `Pre start ${formatNumber(cycle.preAnchorClose)} -> post close ${formatNumber(cycle.preToPostCloseReturnPct)}%`
-                          : `Near low ${formatNumber(cycle.distanceFromTwoMonthLowPct)}% | post high ${formatNumber(cycle.postHighReturnPct)}%`}
-                      </Text>
+                      <Text style={styles.cycleText}>{`Pre start ${formatNumber(cycle.preAnchorClose)} -> post close ${formatNumber(cycle.preToPostCloseReturnPct)}%`}</Text>
                     </View>
                   ))}
                 </View>
               );
             })}
+
+            {!earningsLoading && !earningsError && (earningsPayload?.errors?.length ?? 0) > 0 ? (
+              <View style={styles.resultCard}>
+                <Text style={styles.sectionTitle}>Failed Symbols</Text>
+                {earningsPayload?.errors.map((item) => (
+                  <View key={`${item.symbol}-${item.error}`} style={styles.cycleCard}>
+                    <Text style={styles.cycleDate}>{item.symbol}</Text>
+                    <Text style={styles.cycleText}>{item.error}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </View>
         )}
       </ScrollView>
@@ -443,22 +397,6 @@ function TabButton({
   return (
     <Pressable onPress={onPress} style={[styles.tabButton, active && styles.tabButtonActive]}>
       <Text style={[styles.tabButtonText, active && styles.tabButtonTextActive]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function ModeButton({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable onPress={onPress} style={[styles.modeButton, active && styles.modeButtonActive]}>
-      <Text style={[styles.modeButtonText, active && styles.modeButtonTextActive]}>{label}</Text>
     </Pressable>
   );
 }
@@ -685,28 +623,6 @@ const styles = StyleSheet.create({
   },
   halfField: {
     flex: 1,
-  },
-  toggleRow: {
-    gap: 10,
-  },
-  modeButton: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.bg2,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  modeButtonActive: {
-    backgroundColor: 'rgba(97, 214, 180, 0.12)',
-    borderColor: 'rgba(97, 214, 180, 0.35)',
-  },
-  modeButtonText: {
-    color: colors.muted,
-    fontWeight: '700',
-  },
-  modeButtonTextActive: {
-    color: colors.text,
   },
   primaryButton: {
     borderRadius: 18,

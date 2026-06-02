@@ -385,8 +385,6 @@ function buildEarningsCycle(
   eventTimestamp: number,
   preDays: number,
   postDays: number,
-  nearLowPct: number,
-  bouncePct: number,
   mode: EarningsMode,
 ): EarningsCycle | null {
   const eventIndex = nearestRecordIndexOnOrBefore(records, eventTimestamp);
@@ -418,10 +416,7 @@ function buildEarningsCycle(
     return null;
   }
 
-  const qualified =
-    mode === 'prepost'
-      ? (preToPostClose ?? 0) >= bouncePct
-      : lowGap <= nearLowPct && postHighReturn >= bouncePct;
+  const qualified = preToPostClose !== null;
 
   return {
     earningsDate: new Date(eventTimestamp * 1000).toISOString().slice(0, 10),
@@ -442,8 +437,6 @@ async function scanEarningsPattern(
   symbol: string,
   preDays: number,
   postDays: number,
-  nearLowPct: number,
-  bouncePct: number,
   mode: EarningsMode,
 ): Promise<EarningsResult> {
   const [chart, historical] = await Promise.all([
@@ -452,7 +445,7 @@ async function scanEarningsPattern(
   ]);
 
   const cycles = historical.history
-    .map((item) => buildEarningsCycle(chart.records, item.timestamp, preDays, postDays, nearLowPct, bouncePct, mode))
+    .map((item) => buildEarningsCycle(chart.records, item.timestamp, preDays, postDays, mode))
     .filter((item): item is EarningsCycle => item !== null)
     .sort((a, b) => b.earningsDate.localeCompare(a.earningsDate));
 
@@ -537,22 +530,18 @@ export async function getEarningsPayload({
   symbols,
   preDays,
   postDays,
-  nearLowPct,
-  bouncePct,
   mode,
 }: {
   symbols: string[];
   preDays: number;
   postDays: number;
-  nearLowPct: number;
-  bouncePct: number;
   mode: EarningsMode;
 }): Promise<EarningsPayload> {
   const requested = normalizeSymbols(symbols);
   const results = await Promise.all(
     requested.map(async (symbol) => {
       try {
-        const scan = await scanEarningsPattern(symbol, preDays, postDays, nearLowPct, bouncePct, mode);
+        const scan = await scanEarningsPattern(symbol, preDays, postDays, mode);
         return { ok: true as const, value: scan };
       } catch (error) {
         return {
@@ -596,8 +585,6 @@ export async function getEarningsPayload({
     filters: {
       preDays,
       postDays,
-      nearLowPct,
-      bouncePct,
       mode,
     },
     lastUpdated: nowIso(),

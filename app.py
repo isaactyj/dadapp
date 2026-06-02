@@ -508,8 +508,6 @@ def _build_earnings_cycle(
     event_timestamp: int,
     pre_days: int,
     post_days: int,
-    near_low_pct: float,
-    bounce_pct: float,
     mode: str,
 ) -> dict | None:
     event_index = _nearest_record_index_on_or_before(records, event_timestamp)
@@ -537,10 +535,7 @@ def _build_earnings_cycle(
     if low_gap is None or bounce_high is None or bounce_close is None:
         return None
 
-    if mode == "prepost":
-        qualified = (pre_to_post_close or 0.0) >= bounce_pct
-    else:
-        qualified = low_gap <= near_low_pct and bounce_high >= bounce_pct
+    qualified = pre_to_post_close is not None
 
     return {
         "earnings_date": datetime.fromtimestamp(event_timestamp, tz=timezone.utc).strftime("%Y-%m-%d"),
@@ -561,8 +556,6 @@ def _scan_earnings_pattern(
     symbol: str,
     pre_days: int,
     post_days: int,
-    near_low_pct: float,
-    bounce_pct: float,
     mode: str,
     force_refresh: bool = False,
 ) -> dict:
@@ -601,7 +594,7 @@ def _scan_earnings_pattern(
         )
         if not isinstance(event_timestamp, (int, float)):
             continue
-        cycle = _build_earnings_cycle(records, int(event_timestamp), pre_days, post_days, near_low_pct, bounce_pct, mode)
+        cycle = _build_earnings_cycle(records, int(event_timestamp), pre_days, post_days, mode)
         if cycle:
             cycles.append(cycle)
 
@@ -676,8 +669,6 @@ def get_earnings_payload(
     symbols: list[str],
     pre_days: int,
     post_days: int,
-    near_low_pct: float,
-    bounce_pct: float,
     mode: str,
     force_refresh: bool = False,
 ) -> dict:
@@ -695,8 +686,6 @@ def get_earnings_payload(
                 symbol,
                 pre_days,
                 post_days,
-                near_low_pct,
-                bounce_pct,
                 mode,
                 force_refresh,
             ): symbol
@@ -726,8 +715,6 @@ def get_earnings_payload(
         "filters": {
             "pre_days": pre_days,
             "post_days": post_days,
-            "near_low_pct": near_low_pct,
-            "bounce_pct": bounce_pct,
             "mode": mode,
         },
         "last_updated": _now_iso(),
@@ -738,6 +725,12 @@ def get_earnings_payload(
 class OilWarStocksHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
+
+    def end_headers(self) -> None:
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -804,9 +797,7 @@ class OilWarStocksHandler(SimpleHTTPRequestHandler):
         params = parse_qs(parsed.query)
         symbols = [part for part in params.get("symbols", [""])[0].split(",") if part.strip()]
         force_refresh = params.get("refresh", ["0"])[0] == "1"
-        mode = params.get("mode", ["near-low"])[0].strip().lower()
-        if mode not in {"near-low", "prepost"}:
-            mode = "near-low"
+        mode = "prepost"
 
         def _int_param(name: str, default: int) -> int:
             try:
@@ -825,8 +816,6 @@ class OilWarStocksHandler(SimpleHTTPRequestHandler):
                 symbols,
                 pre_days=max(20, _int_param("pre_days", 42)),
                 post_days=max(1, _int_param("post_days", 20)),
-                near_low_pct=max(1.0, _float_param("near_low_pct", 6.0)),
-                bounce_pct=max(0.0, _float_param("bounce_pct", 8.0)),
                 mode=mode,
                 force_refresh=force_refresh,
             )
