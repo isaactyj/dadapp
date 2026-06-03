@@ -22,9 +22,7 @@
         "OXY",
         "SLB",
         "HAL",
-        "BKR",
-        "PBR",
-        "SU"
+        "BKR"
       ]
     },
     {
@@ -40,8 +38,6 @@
         "SLB",
         "HAL",
         "BKR",
-        "PBR",
-        "SU",
         "DVN",
         "FANG",
         "MPC",
