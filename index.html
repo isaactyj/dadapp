@@ -649,6 +649,55 @@
     td { color: #eef8f3; }
     [data-theme="light"] td { color: #1a2a35; }
 
+    /* ---- Earnings mobile cards ---- */
+    .earnings-mobile-grid {
+      display: none;
+      gap: 14px;
+    }
+
+    .earnings-mob-card {
+      padding: 18px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+      background: var(--metric-bg);
+      display: grid;
+      gap: 10px;
+    }
+
+    .earnings-mob-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .earnings-mob-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--metric-bg);
+      border: 1px solid var(--metric-border);
+      font-size: 0.97rem;
+    }
+
+    .earnings-hit-rate {
+      font-family: "Sora", sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .earnings-hit-rate.good  { color: var(--accent-2); }
+    .earnings-hit-rate.ok    { color: var(--accent); }
+    .earnings-hit-rate.risky { color: var(--danger); }
+
+    @media (max-width: 640px) {
+      .table-wrap { display: none; }
+      .earnings-mobile-grid { display: grid; }
+    }
+
     .earnings-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 16px; }
 
     .error-list { display: grid; gap: 10px; margin-top: 16px; }
@@ -883,6 +932,7 @@
 
       <article class="panel table-card">
         <div id="earningsErrors" class="error-list"></div>
+        <div class="earnings-mobile-grid" id="earningsMobileGrid"></div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -958,7 +1008,7 @@
     };
 
     // ---- Helpers ----
-    const BUY_ZONE_PCT = 5;
+    const BUY_ZONE_PCT = 2;
 
     const isBuyZone = (item) =>
       item.price != null && item.support_level != null &&
@@ -1082,7 +1132,7 @@
       // Buy zone alert banner
       if (buyZoneItems.length) {
         alertBox.classList.add('visible');
-        descEl.textContent = `${buyZoneItems.length} stock${buyZoneItems.length > 1 ? 's are' : ' is'} trading within ${BUY_ZONE_PCT}% of the support floor — a potential entry zone.`;
+        descEl.textContent = `${buyZoneItems.length} stock${buyZoneItems.length > 1 ? 's are' : ' is'} trading within ${BUY_ZONE_PCT}% of the support floor — price is right at the entry zone.`;
         chipsEl.innerHTML = buyZoneItems.map((item) => `
           <div class="buy-zone-chip">
             ${item.symbol}
@@ -1157,10 +1207,19 @@
     };
 
     // ---- Render earnings ----
+    const earningsHitClass = (pct) => {
+      const v = Number(pct);
+      if (isNaN(v)) return 'risky';
+      if (v >= 60) return 'good';
+      if (v >= 40) return 'ok';
+      return 'risky';
+    };
+
     const renderEarningsTable = (payload) => {
-      const body    = document.getElementById('earningsTableBody');
-      const details = document.getElementById('earningsDetails');
-      const errors  = document.getElementById('earningsErrors');
+      const body       = document.getElementById('earningsTableBody');
+      const details    = document.getElementById('earningsDetails');
+      const errors     = document.getElementById('earningsErrors');
+      const mobileGrid = document.getElementById('earningsMobileGrid');
 
       document.getElementById('earningsHighHeader').textContent  = 'Avg Post-Earnings High';
       document.getElementById('earningsCloseHeader').textContent = 'Avg Post-Earnings Close';
@@ -1171,10 +1230,12 @@
 
       if (!payload.results.length) {
         body.innerHTML = `<tr><td colspan="8"><div class="empty">No qualifying earnings history found for this list of stocks.</div></td></tr>`;
+        mobileGrid.innerHTML = '';
         details.innerHTML = '';
         return;
       }
 
+      // Desktop table
       body.innerHTML = payload.results.map((item) => {
         const latest = item.latest_cycle;
         const latestText = latest ? `${latest.earnings_date} | ${formatNumber(latest.pre_to_post_close_return_pct)}%` : 'n/a';
@@ -1189,6 +1250,32 @@
             <td>${item.next_earnings_date || 'n/a'}</td>
             <td>${latestText}</td>
           </tr>
+        `;
+      }).join('');
+
+      // Mobile stacked cards
+      mobileGrid.innerHTML = payload.results.map((item) => {
+        const latest = item.latest_cycle;
+        const cls = earningsHitClass(item.hit_rate_pct);
+        return `
+          <div class="earnings-mob-card">
+            <div class="earnings-mob-head">
+              <div>
+                <div class="ticker">${item.symbol}</div>
+                <p>${item.name}</p>
+              </div>
+              <div style="text-align:right;">
+                <div class="earnings-hit-rate ${cls}">${formatNumber(item.hit_rate_pct)}%</div>
+                <div class="mini">hit rate</div>
+              </div>
+            </div>
+            <div class="earnings-mob-row"><span>Current Price</span><strong>$${formatNumber(item.price)}</strong></div>
+            <div class="earnings-mob-row"><span>Bounced / Total</span><strong>${item.pattern_hits} of ${item.events_tested} times</strong></div>
+            <div class="earnings-mob-row"><span>Avg High After Earnings</span><strong>${formatNumber(item.avg_post_high_return_pct)}%</strong></div>
+            <div class="earnings-mob-row"><span>Avg Close After Earnings</span><strong>${formatNumber(item.avg_post_close_return_pct)}%</strong></div>
+            <div class="earnings-mob-row"><span>Next Earnings</span><strong>${item.next_earnings_date || 'n/a'}</strong></div>
+            ${latest ? `<div class="earnings-mob-row"><span>Last Cycle</span><strong>${latest.earnings_date} &nbsp; ${formatNumber(latest.pre_to_post_close_return_pct)}%</strong></div>` : ''}
+          </div>
         `;
       }).join('');
 
